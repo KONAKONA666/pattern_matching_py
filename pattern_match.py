@@ -27,8 +27,6 @@ def match(s, pattern):
         params_dict[name] = [default, annotation]
     is_type_matches = True
     is_value_matches = True
-    print(params_dict)
-    print(args)
     for s_arg, p_arg in zip(args, list(params_dict.values())[:len(args)]):
        if p_arg[1] is Any:
             is_type_matches = is_type_matches and True
@@ -41,6 +39,20 @@ def match(s, pattern):
        else:
             is_value_matches = False
 
+    for k_arg in kwargs:
+        if not k_arg in params_dict:
+            return False
+        if params_dict[k_arg][1] is Any:
+            is_type_matches = is_type_matches and True
+        else:
+            is_type_matches = is_type_matches and type(kwargs[k_arg]) is params_dict[k_arg][1]
+
+        if params_dict[k_arg][0] is None:
+            is_value_matches = is_value_matches and True
+        elif is_type_matches:
+            is_value_matches = is_value_matches and params_dict[k_arg][0] == kwargs[k_arg]
+        else:
+            is_value_matches = False
     return is_value_matches and is_type_matches
 
 def pm(a):
@@ -58,20 +70,20 @@ def pm(a):
                    return params[0](*args, **kwargs)
            raise TypeError("No pattern is found")
        return preprocess
-@pm
-def f():
-    print("void")
 
+
+
+
+
+@pm
+def f(n=0):
+    return 1
 @pm
 def f(n=1):
-    print("n=1")
+    return 1
 
 @pm
-def f(n: int)->None:
-    print(n)
+def f(n: int)->int:
+    return f(n-1) + f(n-2)
 
-f(n=0)
-f(n=3)
-f(1)
-f()
-
+print(f(10))
