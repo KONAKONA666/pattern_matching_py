@@ -81,6 +81,7 @@ class PatternTerm(object):
         return isinstance(annotation, type)
 
     def __eq__(self, pattern_term: 'PatternTerm')->bool:
+        #print("Name check: {0}\nType Check: {0}\nValue Check: {0}".format(self.check_name))
         return self.check_name(pattern_term.name) and self.check_annotation(pattern_term.annotation) and self.check_value(pattern_term.value)
     def check_name(self, name: str)->bool:
         return self.name == "" or self.name == name
@@ -103,15 +104,24 @@ class PatternTerm(object):
 
 class Pattern(object): 
     args_pattern_term = PatternTerm("args", EmptyDefaultValue(), Any)
+    kwargs_pattern_term = PatternTerm("kwargs", EmptyDefaultValue(), Any)
     def __init__(self, *args, **kwargs):
         self.args = [("", arg, type(arg)) for arg in args]
         self.kwargs = [(key, kwargs[key][0], kwargs[key][1]) for key in kwargs]
         processed_args = self.args + self.kwargs
         self.pattern_terms = [PatternTerm(*arg) for arg in processed_args]
     def __eq__(self, pattern: 'Pattern')->False:
-        if not len(self) == len(pattern):
+        if len(self) < len(pattern):
             return False
-        return self.pattern_terms[:len(self.args)] == self.pattern_terms[:len(self.args)] and \
+        if Pattern.args_pattern_term in pattern.pattern_terms:
+            print(self)
+            if len(pattern.pattern_terms) > len(self.args):
+                return False
+            idx =  pattern.pattern_terms.index(Pattern.args_pattern_term)
+            return self.pattern_terms[:idx] == pattern.pattern_terms[:idx]
+        print(self)
+        print(pattern)
+        return self.pattern_terms[:len(self.args)] == pattern.pattern_terms[:len(self.args)] and \
                 all([lpattern_term in pattern.pattern_terms[len(self.args):] for lpattern_term in self.pattern_terms[len(self.args):]]+[True])
     def __str__(self)->str:
         return "<Pattern: ["+",".join([str(term) for term in self.pattern_terms])+"]>"
@@ -124,21 +134,20 @@ def match_parameters(name: str)->Callable:
         processed_kwargs = {key: (kwargs[key], type(kwargs[key])) for key in kwargs}
         curr_pattern = Pattern(*args, **processed_kwargs)
         patterns = pattern_mapper[name]
-        print(curr_pattern)
         matched = list(filter(lambda x: curr_pattern == x["pattern"], patterns))
         if False and len(matched)>1:
             raise MultipleMatchError("{0} corresponds to {1} matches".format(curr_pattern, len(matched)))
         elif not len(matched):
             raise NoMatchError("{0} mathches with no pattern".format(curr_pattern))
         else:
-            print(matched[0]["pattern"])
+        #    print(matched[0]["pattern"])
             return matched[0]["func"](*args, **kwargs)
     return __match_parameters
 
 def pm(func):
     name = PatternMapper.get_name(func)
     pattern = Pattern(**PatternMapper.get_params(func))
-    print(pattern)
+    #print(pattern)
     pattern_mapper.add_pattern(name, pattern, func)
     return match_parameters(name)
 
@@ -149,17 +158,11 @@ class P:
 @pm
 def f(a: P):
     print(1)
-@pm
-def f(a: int, *args):
-    return args
 
 @pm
-def f(a=[1, 2, 3, EmptyDefaultValue()], b=3):
-    return 2
+def f(a=1, b=1, c=2, d=3, *args):
+    print(args)
+    return 1
 
-@pm
-def f(a, b=3, c=4):
-    return 4
-
-print(f(1, c=4, b=3))
+print(f(1, 0, 2, 3, 4, 5, 6))
 
