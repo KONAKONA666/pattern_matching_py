@@ -161,40 +161,5 @@ def pm(func):
     pattern_mapper.add_pattern(name, pattern, func)
     return match_parameters(name)
 
-
-class P:
+if __name__ == "__main__":
     pass
-
-
-@pm
-def lisp(x: int):
-    return x
-
-@pm
-def lisp(x: list):
-    return x
-
-@pm
-def lisp(x: Callable):
-    return x
-
-@pm
-def lisp(x: Callable, *args):
-    return x(*map(lisp, args))
-
-from functools import reduce
-
-@pm
-def lisp(x: tuple):
-    return list(map(lambda arg: lisp(*arg), x))
-
-
-plus = lambda x, y: x+y
-
-print(lisp((
-    (reduce, plus, [1, 2, 3, 4])
-, (plus, 1, 2))))
-
-
-
-
