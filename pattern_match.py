@@ -72,37 +72,49 @@ class PatternTerm(object):
         return name
     @staticmethod
     def is_generic(annotation: Any)->bool:
+        return False
         return isinstance(annotation, GenericMeta)
     @staticmethod
-    def is_class(annotaion: Any)->bool:
-        return isinstance(annotaion.__class__,  type)
+    def is_class(annotation: Any)->bool:
+        return isinstance(annotation.__class__,  type)
     @staticmethod
-    def is_type(annotaion: Any)->bool:
-        return isinstance(annotation, type)
+    def is_type(annotation: Any)->bool:
+        return annotation in (int, float, str, list, tuple)
+    @staticmethod
+    def is_callable(annotation: Any)->bool:
+        return annotation is Callable
 
     def __eq__(self, pattern_term: 'PatternTerm')->bool:
-        #print("Name check: {0}\nType Check: {0}\nValue Check: {0}".format(self.check_name))
+#        print("{0} with {1}".format(self, pattern_term))
+#        print("Name check: {0}\nType Check: {1}\nValue Check: {2}".format(self.check_name(pattern_term.name),
+#                                                                          self.check_annotation(pattern_term.annotation),
+#                                                                          self.check_value(pattern_term.value)))
         return self.check_name(pattern_term.name) and self.check_annotation(pattern_term.annotation) and self.check_value(pattern_term.value)
     def check_name(self, name: str)->bool:
         return self.name == "" or self.name == name
     def check_value(self, value: Any)->bool:
         return isinstance(value, EmptyDefaultValue) or isinstance(self.value, EmptyDefaultValue) or self.value == value
-    def check_annotation(self, annotation):
+    def check_annotation(self, annotation, value=None):
         if annotation is Any:
             return True
+        if PatternTerm.is_type(annotation):
+            return self.annotation is annotation
+        if PatternTerm.is_callable(annotation):
+            return self.match_callable(annotation)
         if PatternTerm.is_generic(annotation):
            return self.match_generic(annotaion)
         if PatternTerm.is_class(annotation):
             return self.annotation is annotation
-        if PatternTerm.is_type(annotation):
-            return self.annotation is annotaion
+
     def match_generic(self, annotation):
         return False
+    def match_callable(self, annotation):
+        return callable(self.value)
     def __str__(self):
         return "({0}, {1}, {2})".format(self.name, self.value, self.annotation)
 
 
-class Pattern(object): 
+class Pattern(object):
     args_pattern_term = PatternTerm("args", EmptyDefaultValue(), Any)
     kwargs_pattern_term = PatternTerm("kwargs", EmptyDefaultValue(), Any)
     def __init__(self, *args, **kwargs):
@@ -114,13 +126,10 @@ class Pattern(object):
         if len(self) < len(pattern):
             return False
         if Pattern.args_pattern_term in pattern.pattern_terms:
-            print(self)
             if len(pattern.pattern_terms) > len(self.args):
                 return False
             idx =  pattern.pattern_terms.index(Pattern.args_pattern_term)
             return self.pattern_terms[:idx] == pattern.pattern_terms[:idx]
-        print(self)
-        print(pattern)
         return self.pattern_terms[:len(self.args)] == pattern.pattern_terms[:len(self.args)] and \
                 all([lpattern_term in pattern.pattern_terms[len(self.args):] for lpattern_term in self.pattern_terms[len(self.args):]]+[True])
     def __str__(self)->str:
@@ -134,6 +143,7 @@ def match_parameters(name: str)->Callable:
         processed_kwargs = {key: (kwargs[key], type(kwargs[key])) for key in kwargs}
         curr_pattern = Pattern(*args, **processed_kwargs)
         patterns = pattern_mapper[name]
+        #print(curr_pattern)
         matched = list(filter(lambda x: curr_pattern == x["pattern"], patterns))
         if False and len(matched)>1:
             raise MultipleMatchError("{0} corresponds to {1} matches".format(curr_pattern, len(matched)))
@@ -155,14 +165,36 @@ def pm(func):
 class P:
     pass
 
-@pm
-def f(a: P):
-    print(1)
 
 @pm
-def f(a=1, b=1, c=2, d=3, *args):
-    print(args)
-    return 1
+def lisp(x: int):
+    return x
 
-print(f(1, 0, 2, 3, 4, 5, 6))
+@pm
+def lisp(x: list):
+    return x
+
+@pm
+def lisp(x: Callable):
+    return x
+
+@pm
+def lisp(x: Callable, *args):
+    return x(*map(lisp, args))
+
+from functools import reduce
+
+@pm
+def lisp(x: tuple):
+    return list(map(lambda arg: lisp(*arg), x))
+
+
+plus = lambda x, y: x+y
+
+print(lisp((
+    (reduce, plus, [1, 2, 3, 4])
+, (plus, 1, 2))))
+
+
+
 
