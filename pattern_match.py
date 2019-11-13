@@ -10,7 +10,8 @@ from collections import OrderedDict
 from inspect import Parameter
 
 class EmptyDefaultValue:
-    pass
+    def __eq__(self, a):
+        return True
 
 class NoMatchError(Exception):
     def __init__(self, msg):
@@ -43,15 +44,15 @@ class PatternMapper:
         s = inspect.signature(func)
         return OrderedDict([(param, (s.parameters[param].default, s.parameters[param].annotation)) for param in s.parameters])
 
-class PatternTerm(object):
-    def __init__(self, name: str, value: Any, annotation: Any):
-        self.name = PatternTerm.process_name(name)
-        self.value = PatternTerm.process_value(value)
-        self.annotation = PatternTerm.process_annotation(annotation)
-    @staticmethod
-    def process_annotation(annotation: Any):
+class PatternTerm(object): 
+    def __init__(self, name: str, value: Any, annotation: Any)->None:
+        self.name = self.process_name(name)
+        self.value = self.process_value(value)
+        self.annotation = self.process_annotation(annotation)
+
+    def process_annotation(self, annotation)->Any:
         if annotation is inspect._empty:
-            return Any
+            return type(self.value) if not isinstance(self.value, EmptyDefaultValue) else Any
         if PatternTerm.is_generic(annotation):
             return PatternTerm.process_generic(annotation)
         if PatternTerm.is_class(annotation):
@@ -60,14 +61,14 @@ class PatternTerm(object):
             return annotation
         if annotation is Any:
             return annotation
-    @staticmethod
-    def process_value(value: Any):
+
+    def process_value(self, value: Any)->Any:
         if value is inspect._empty:
             return EmptyDefaultValue()
         else:
             return value
-    @staticmethod
-    def process_name(name: str)->str:
+
+    def process_name(self, name: str)->str:
         return name
     @staticmethod
     def is_generic(annotation: Any)->bool:
@@ -84,8 +85,8 @@ class PatternTerm(object):
     def check_name(self, name: str)->bool:
         return self.name == "" or self.name == name
     def check_value(self, value: Any)->bool:
-        return isinstance(value, EmptyDefaultValue)or isinstance(self.value, EmptyDefaultValue) or self.value == value
-    def check_annotation(self, annotation: Any):
+        return isinstance(value, EmptyDefaultValue) or isinstance(self.value, EmptyDefaultValue) or self.value == value
+    def check_annotation(self, annotation):
         if annotation is Any:
             return True
         if PatternTerm.is_generic(annotation):
@@ -100,50 +101,65 @@ class PatternTerm(object):
         return "({0}, {1}, {2})".format(self.name, self.value, self.annotation)
 
 
-class Pattern(object):
+class Pattern(object): 
+    args_pattern_term = PatternTerm("args", EmptyDefaultValue(), Any)
     def __init__(self, *args, **kwargs):
-        processed_args = [("", arg, type(arg)) for arg in args] + [(key, kwargs[key][0], kwargs[key][1]) for key in kwargs]
+        self.args = [("", arg, type(arg)) for arg in args]
+        self.kwargs = [(key, kwargs[key][0], kwargs[key][1]) for key in kwargs]
+        processed_args = self.args + self.kwargs
         self.pattern_terms = [PatternTerm(*arg) for arg in processed_args]
-    def __eq__(self, pattern: 'Pattern'):
-        return self.pattern_terms == pattern.pattern_terms
-    def __str__(self):
+    def __eq__(self, pattern: 'Pattern')->False:
+        if not len(self) == len(pattern):
+            return False
+        return self.pattern_terms[:len(self.args)] == self.pattern_terms[:len(self.args)] and \
+                all([lpattern_term in pattern.pattern_terms[len(self.args):] for lpattern_term in self.pattern_terms[len(self.args):]]+[True])
+    def __str__(self)->str:
         return "<Pattern: ["+",".join([str(term) for term in self.pattern_terms])+"]>"
-    def __len__(self):
+    def __len__(self)->int:
         return len(self.pattern_terms)
 
 pattern_mapper = PatternMapper()
-def match_parameters(name: str): 
-    def __match_parameters( *args, **kwargs):
+def match_parameters(name: str)->Callable: 
+    def __match_parameters(*args, **kwargs)->Any:
         processed_kwargs = {key: (kwargs[key], type(kwargs[key])) for key in kwargs}
         curr_pattern = Pattern(*args, **processed_kwargs)
         patterns = pattern_mapper[name]
+        print(curr_pattern)
         matched = list(filter(lambda x: curr_pattern == x["pattern"], patterns))
         if False and len(matched)>1:
             raise MultipleMatchError("{0} corresponds to {1} matches".format(curr_pattern, len(matched)))
         elif not len(matched):
             raise NoMatchError("{0} mathches with no pattern".format(curr_pattern))
         else:
+            print(matched[0]["pattern"])
             return matched[0]["func"](*args, **kwargs)
     return __match_parameters
 
 def pm(func):
     name = PatternMapper.get_name(func)
     pattern = Pattern(**PatternMapper.get_params(func))
+    print(pattern)
     pattern_mapper.add_pattern(name, pattern, func)
     return match_parameters(name)
 
 
+class P:
+    pass
 
 @pm
-def f(n:int=1)->int:
-    return 1
+def f(a: P):
+    print(1)
+@pm
+def f(a: int, *args):
+    return args
 
 @pm
-def f(n:int=2):
-    return 1
+def f(a=[1, 2, 3, EmptyDefaultValue()], b=3):
+    return 2
 
 @pm
-def f(n: int):
-    return f(n-1)+f(n-2)
+def f(a, b=3, c=4):
+    return 4
 
-print(f(11))
+print(f(1, c=4, b=3))
+
