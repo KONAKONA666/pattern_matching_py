@@ -63,7 +63,7 @@ def edit_distance(s1: string, s2: string):
     
     return _edit_distance(len(s1)-1, len(s2)-1)
  ```
-## Avalilable Patterns, Yeah!
+## Available Patterns, Yeah!
 
 ```python
 @pm
