@@ -2,24 +2,43 @@ import os
 import sys
 from typing import (
     List, Tuple, Any,
-    Generic, TypeVar, Callable, GenericMeta
+    Generic, TypeVar, Callable, GenericMeta, Union,
+
 )
 import inspect
 
 from collections import OrderedDict
 from inspect import Parameter
 
+
 class EmptyDefaultValue:
     def __eq__(self, a):
         return True
+
+class HeadValue:
+    def __init__(self, type_):
+        self.type_ = type_
+    def __eq__(self, a):
+        return True
+    def __call__(self, type_: Any):
+        return HeadValue(type_)
+class TailValue:
+    pass
+
+ANY_VALUE = EmptyDefaultValue()
+EMPTY_VALUE = EmptyDefaultValue()
+HEAD = HeadValue(inspect.Parameter.empty)
+TAIL = TailValue()
 
 class NoMatchError(Exception):
     def __init__(self, msg):
         super().__init__(msg)
 
+
 class MultipleMatchError(Exception):
     def __init__(self, msg):
         super().__init__(msg)
+
 
 class PatternMapper:
     def __init__(self):
@@ -44,6 +63,7 @@ class PatternMapper:
         s = inspect.signature(func)
         return OrderedDict([(param, (s.parameters[param].default, s.parameters[param].annotation)) for param in s.parameters])
 
+
 class PatternTerm(object): 
     def __init__(self, name: str, value: Any, annotation: Any)->None:
         self.name = self.process_name(name)
@@ -64,7 +84,7 @@ class PatternTerm(object):
 
     def process_value(self, value: Any)->Any:
         if value is inspect._empty:
-            return EmptyDefaultValue()
+            return EMPTY_VALUE
         else:
             return value
 
@@ -84,7 +104,7 @@ class PatternTerm(object):
     def is_callable(annotation: Any)->bool:
         return annotation is Callable
 
-    def __eq__(self, pattern_term: 'PatternTerm')->bool:
+    def __eq__(self, pattern_term: Any)->bool:
 #        print("{0} with {1}".format(self, pattern_term))
 #        print("Name check: {0}\nType Check: {1}\nValue Check: {2}".format(self.check_name(pattern_term.name),
 #                                                                          self.check_annotation(pattern_term.annotation),
@@ -93,6 +113,9 @@ class PatternTerm(object):
     def check_name(self, name: str)->bool:
         return self.name == "" or self.name == name
     def check_value(self, value: Any)->bool:
+        print(self.annotation)
+        if self.annotation in (list, tuple):
+            return self.match_iterable(value)
         return isinstance(value, EmptyDefaultValue) or isinstance(self.value, EmptyDefaultValue) or self.value == value
     def check_annotation(self, annotation, value=None):
         if annotation is Any:
@@ -105,7 +128,19 @@ class PatternTerm(object):
            return self.match_generic(annotaion)
         if PatternTerm.is_class(annotation):
             return self.annotation is annotation
-
+    def match_iterable(self, value)->bool:
+        if isinstance(value[-1], TailValue):
+            if len(value) == 1:
+                return len(self.value) > 0
+            if len(self.value) < len(value):
+                return False
+            return self.value[:len(value)-1] == value[:-1]
+        if isinstance(value[0], HeadValue):
+            if len(value) == 1:
+                return len(self.value) > 1
+            if len(self.value) < len(value):
+                return False
+            return value[1:] == self.value[-len(value)+1:]
     def match_generic(self, annotation):
         return False
     def match_callable(self, annotation):
@@ -115,14 +150,14 @@ class PatternTerm(object):
 
 
 class Pattern(object):
-    args_pattern_term = PatternTerm("args", EmptyDefaultValue(), Any)
-    kwargs_pattern_term = PatternTerm("kwargs", EmptyDefaultValue(), Any)
+    args_pattern_term = PatternTerm("args", EMPTY_VALUE, Any)
+    kwargs_pattern_term = PatternTerm("kwargs", EMPTY_VALUE, Any)
     def __init__(self, *args, **kwargs):
         self.args = [("", arg, type(arg)) for arg in args]
         self.kwargs = [(key, kwargs[key][0], kwargs[key][1]) for key in kwargs]
         processed_args = self.args + self.kwargs
         self.pattern_terms = [PatternTerm(*arg) for arg in processed_args]
-    def __eq__(self, pattern: 'Pattern')->False:
+    def __eq__(self, pattern: Any)->False:
         if len(self) < len(pattern):
             return False
         if Pattern.args_pattern_term in pattern.pattern_terms:
@@ -145,9 +180,7 @@ def match_parameters(name: str)->Callable:
         patterns = pattern_mapper[name]
         #print(curr_pattern)
         matched = list(filter(lambda x: curr_pattern == x["pattern"], patterns))
-        if False and len(matched)>1:
-            raise MultipleMatchError("{0} corresponds to {1} matches".format(curr_pattern, len(matched)))
-        elif not len(matched):
+        if not len(matched):
             raise NoMatchError("{0} mathches with no pattern".format(curr_pattern))
         else:
         #    print(matched[0]["pattern"])
@@ -161,5 +194,9 @@ def pm(func):
     pattern_mapper.add_pattern(name, pattern, func)
     return match_parameters(name)
 
+
+
 if __name__ == "__main__":
     pass
+
+
