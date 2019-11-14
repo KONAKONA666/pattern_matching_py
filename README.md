@@ -1,4 +1,5 @@
 # ElixirJizniPy is a Pattern Matching lib for python
+[![Coverage Status](https://coveralls.io/repos/github/KONAKONA666/pattern_matching_py/badge.svg?branch=master)](https://coveralls.io/github/KONAKONA666/pattern_matching_py?branch=master)
 
 ElixirJizniPy is small lib, inspired by Elixir pattern matching concept 
 
