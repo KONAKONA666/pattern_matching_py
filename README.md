@@ -73,7 +73,7 @@ def f(x:type|class|,......) #typed pos args
 When, there is no match value(default) pm matches with type, if no type and no value is angegeben it matches with argument 
 ```python
 @pm
-def f(x:int=1, y:str="pidoras") #valued
+def f(x:int=1, y:str="a") #valued
 ```
 When, there is no type pm takes type(value) as type(annotation)
 ```python
